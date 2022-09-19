@@ -1,0 +1,51 @@
+version: "3.3"
+
+services:
+  database_airflow:
+    container_name: af_db
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./airflow/db:/var/lib/postgresql/data:Z
+    ports:
+      - "5454:5432"
+
+  webserver:
+    container_name: af_ws
+    image: apache/airflow:2.3.4
+    command:
+      - webserver
+    ports:
+      - "8086:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags:z
+    environment:
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_PASSWORD: "admin"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database_airflow:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database_airflow:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "kek"
+
+  scheduler:
+    image: apache/airflow:2.3.4
+    container_name: af_shc
+    command:
+      - scheduler
+    depends_on:
+      - webserver
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database_airflow:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database_airflow:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: "LocalExecutor"
+      PYTHONPATH: "/opt/airflow/"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "kek"
+    volumes:
+      -  ./dags:/opt/airflow/dags:z
+      - ./dwh_api:/opt/airflow/dwh_api
